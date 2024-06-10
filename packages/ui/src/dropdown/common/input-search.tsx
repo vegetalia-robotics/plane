@@ -1,3 +1,5 @@
+"use client";
+
 import React, { FC, useEffect, useRef } from "react";
 // headless ui
 import { Combobox } from "@headlessui/react";

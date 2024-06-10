@@ -1,3 +1,5 @@
+"use client";
+
 import React, { Fragment } from "react";
 // headless ui
 import { Combobox } from "@headlessui/react";

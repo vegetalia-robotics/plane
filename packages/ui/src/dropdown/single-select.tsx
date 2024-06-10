@@ -1,3 +1,5 @@
+"use client";
+
 import React, { FC, useMemo, useRef, useState } from "react";
 import sortBy from "lodash/sortBy";
 // headless ui

@@ -1,3 +1,5 @@
+"use client";
+
 import { Placement } from "@popperjs/core";
 import { EmojiClickData, Theme } from "emoji-picker-react";
 
