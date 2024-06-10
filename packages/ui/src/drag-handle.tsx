@@ -1,3 +1,5 @@
+"use client";
+
 import React, { forwardRef } from "react";
 import { MoreVertical } from "lucide-react";
 // helpers

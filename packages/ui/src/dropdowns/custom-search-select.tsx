@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useRef, useState } from "react";
 import { usePopper } from "react-popper";
 import { Combobox } from "@headlessui/react";

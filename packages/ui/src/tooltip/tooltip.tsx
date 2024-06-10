@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { Tooltip2 } from "@blueprintjs/popover2";
 // helpers

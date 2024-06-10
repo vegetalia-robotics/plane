@@ -1,3 +1,5 @@
+"use client";
+
 import React, { Fragment, useEffect, useMemo } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Draggable } from "./draggable";

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 // helpers
 import { getIconStyling, getBadgeStyling, TBadgeVariant, TBadgeSizes } from "./helper";
