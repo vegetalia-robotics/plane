@@ -8,6 +8,7 @@ import "@/styles/react-day-picker.css";
 // helpers
 import { API_BASE_URL } from "@/helpers/common.helper";
 // local
+import getEnvVariables from "./env-setup";
 import { AppProvider } from "./provider";
 
 export const metadata: Metadata = {
@@ -27,8 +28,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const isSessionRecorderEnabled = parseInt(process.env.NEXT_PUBLIC_ENABLE_SESSION_RECORDER || "0");
+
+  const envVars = await getEnvVariables();
+  console.log("envVars", envVars);
 
   return (
     <html lang="en">
