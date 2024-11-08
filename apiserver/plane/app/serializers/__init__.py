@@ -56,7 +56,7 @@ from .issue import (
     IssueFlatSerializer,
     IssueStateSerializer,
     IssueLinkSerializer,
-    IssueInboxSerializer,
+    IssueIntakeSerializer,
     IssueLiteSerializer,
     IssueAttachmentSerializer,
     IssueSubscriberSerializer,
@@ -101,12 +101,12 @@ from .estimate import (
     WorkspaceEstimateSerializer,
 )
 
-from .inbox import (
-    InboxSerializer,
-    InboxIssueSerializer,
-    IssueStateInboxSerializer,
-    InboxIssueLiteSerializer,
-    InboxIssueDetailSerializer,
+from .intake import (
+    IntakeSerializer,
+    IntakeIssueSerializer,
+    IssueStateIntakeSerializer,
+    IntakeIssueLiteSerializer,
+    IntakeIssueDetailSerializer,
 )
 
 from .analytic import AnalyticViewSerializer
