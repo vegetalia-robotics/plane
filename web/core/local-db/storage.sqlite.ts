@@ -19,6 +19,8 @@ import { runQuery } from "./utils/query-executor";
 import { createTables } from "./utils/tables";
 import { clearOPFS, getGroupedIssueResults, getSubGroupedIssueResults, log, logError } from "./utils/utils";
 
+const syncChannel = new BroadcastChannel(`hm-sync`);
+
 const DB_VERSION = 1;
 const PAGE_SIZE = 500;
 const BATCH_SIZE = 50;
@@ -39,7 +41,10 @@ export class Storage {
     this.db = null;
 
     if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", this.closeDBConnection);
+      window.addEventListener("beforeunload", () => {
+        this.closeDBConnection();
+        syncChannel?.close();
+      });
     }
   }
 
@@ -222,7 +227,11 @@ export class Storage {
     const start = performance.now();
     const issueService = new IssueService();
 
+    const syncedIssues = [];
     const response = await issueService.getIssuesForSync(this.workspaceSlug, projectId, queryParams);
+    if (response.total_results > 0 && Array.isArray(response.results)) {
+      syncedIssues.push(...response.results);
+    }
 
     await addIssuesBulk(response.results, BATCH_SIZE);
     if (response.total_pages > 1) {
@@ -234,11 +243,28 @@ export class Storage {
       const pages = await Promise.all(promiseArray);
       for (const page of pages) {
         await addIssuesBulk(page.results, BATCH_SIZE);
+        if (page.total_results > 0 && Array.isArray(page.results)) {
+          syncedIssues.push(...page.results);
+        }
       }
     }
+    // Broadcast issue sync event
+    syncChannel.postMessage({
+      type: "issues:sync",
+      workspaceSlug: this.workspaceSlug,
+      projectId,
+      data: syncedIssues,
+    });
 
     if (syncedAt) {
-      await syncDeletesToLocal(this.workspaceSlug, projectId, { updated_at__gt: syncedAt });
+      const deletedIssues = await syncDeletesToLocal(this.workspaceSlug, projectId, { updated_at__gt: syncedAt });
+      // Broadcast deleted issue remove event
+      syncChannel.postMessage({
+        type: "issues:remove",
+        workspaceSlug: this.workspaceSlug,
+        projectId,
+        data: deletedIssues,
+      });
     }
     log("### Time taken to add issues", performance.now() - start);
 

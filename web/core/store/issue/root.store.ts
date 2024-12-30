@@ -1,7 +1,7 @@
 import isEmpty from "lodash/isEmpty";
 import { autorun, makeObservable, observable } from "mobx";
 // types
-import { EIssueServiceType } from "@plane/constants";
+import { EIssueServiceType, EIssuesStoreType } from "@plane/constants";
 import { ICycle, IIssueLabel, IModule, IProject, IState, IUserLite, TIssueServiceType } from "@plane/types";
 // plane web store
 import { IProjectEpics, IProjectEpicsFilter, ProjectEpics, ProjectEpicsFilter } from "@/plane-web/store/issue/epic";
@@ -238,7 +238,7 @@ export class IssueRootStore implements IIssueRootStore {
     this.workspaceDraftIssues = new WorkspaceDraftIssues(this);
 
     this.projectIssuesFilter = new ProjectIssuesFilter(this);
-    this.projectIssues = new ProjectIssues(this, this.projectIssuesFilter);
+    this.projectIssues = new ProjectIssues(this, this.projectIssuesFilter, EIssuesStoreType.PROJECT, true);
 
     this.teamIssuesFilter = new TeamIssuesFilter(this);
     this.teamIssues = new TeamIssues(this, this.teamIssuesFilter);
@@ -253,7 +253,12 @@ export class IssueRootStore implements IIssueRootStore {
     this.teamViewIssues = new TeamViewIssues(this, this.teamViewIssuesFilter);
 
     this.projectViewIssuesFilter = new ProjectViewIssuesFilter(this);
-    this.projectViewIssues = new ProjectViewIssues(this, this.projectViewIssuesFilter);
+    this.projectViewIssues = new ProjectViewIssues(
+      this,
+      this.projectViewIssuesFilter,
+      EIssuesStoreType.PROJECT_VIEW,
+      true
+    );
 
     this.archivedIssuesFilter = new ArchivedIssuesFilter(this);
     this.archivedIssues = new ArchivedIssues(this, this.archivedIssuesFilter);

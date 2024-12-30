@@ -1,5 +1,6 @@
 import { action, makeObservable, runInAction } from "mobx";
 // base class
+import { EIssuesStoreType } from "@plane/constants";
 import { TLoader, IssuePaginationOptions, TIssuesResponse, ViewFlags, TBulkOperationsPayload } from "@plane/types";
 // services
 // types
@@ -51,7 +52,9 @@ export class ArchivedIssues extends BaseIssuesStore implements IArchivedIssues {
   };
 
   constructor(_rootStore: IIssueRootStore, issueFilterStore: IArchivedIssuesFilter) {
-    super(_rootStore, issueFilterStore, true);
+    super(_rootStore, issueFilterStore, EIssuesStoreType.ARCHIVED, {
+      isArchived: true,
+    });
     makeObservable(this, {
       // action
       fetchIssues: action,

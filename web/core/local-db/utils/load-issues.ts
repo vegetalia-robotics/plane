@@ -69,6 +69,7 @@ export const syncDeletesToLocal = async (workspaceId: string, projectId: string,
   if (Array.isArray(response)) {
     response.map(async (issue) => deleteIssueFromLocal(issue));
   }
+  return response;
 };
 
 const stageIssueInserts = async (issue: any) => {

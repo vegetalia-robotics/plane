@@ -1,4 +1,5 @@
 import clone from "lodash/clone";
+import cloneDeep from "lodash/cloneDeep";
 import concat from "lodash/concat";
 import get from "lodash/get";
 import indexOf from "lodash/indexOf";
@@ -13,7 +14,7 @@ import update from "lodash/update";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
 // plane constants
-import { EIssueLayoutTypes, ALL_ISSUES, EIssueServiceType } from "@plane/constants";
+import { EIssueLayoutTypes, ALL_ISSUES, EIssueServiceType, EIssuesStoreType } from "@plane/constants";
 // types
 import {
   TIssue,
@@ -29,6 +30,9 @@ import {
   TGroupedIssueCount,
   TPaginationData,
   TBulkOperationsPayload,
+  TIssueBroadcastEvent,
+  TIssueSyncEvent,
+  TIssueRemoveEvent,
 } from "@plane/types";
 // components
 import { IBlockUpdateDependencyData } from "@/components/gantt-chart";
@@ -47,11 +51,14 @@ import { ModuleService } from "@/services/module.service";
 import { IIssueRootStore } from "../root.store";
 import {
   getDifference,
+  getFilteredIssues,
   getGroupIssueKeyActions,
   getGroupKey,
   getIssueIds,
+  getPreviousIssuesState,
   getSortOrderToFilterEmptyValues,
   getSubGroupIssueKeyActions,
+  isCurrentIssueStoreActive,
 } from "./base-issues-utils";
 import { IBaseIssueFilterStore } from "./issue-filter-helper.store";
 
@@ -62,6 +69,13 @@ export enum EIssueGroupedAction {
   DELETE = "DELETE",
   REORDER = "REORDER",
 }
+
+export type TBaseIssueStoreOptions = {
+  isArchived?: boolean;
+  serviceType?: EIssueServiceType;
+  isUsingLocalDB?: boolean;
+};
+
 export interface IBaseIssuesStore {
   // observable
   loader: Record<string, TLoader>;
@@ -180,6 +194,8 @@ const ISSUE_ORDERBY_KEY: Record<TIssueOrderByOptions, keyof TIssue> = {
   "-sub_issues_count": "sub_issues_count",
 };
 
+const syncChannel = new BroadcastChannel(`hm-sync`);
+
 export abstract class BaseIssuesStore implements IBaseIssuesStore {
   loader: Record<string, TLoader> = {};
   groupedIssueIds: TIssues | undefined = undefined;
@@ -188,7 +204,7 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   groupedIssueCount: TGroupedIssueCount = {};
   //
   paginationOptions: IssuePaginationOptions | undefined = undefined;
-
+  storeType: EIssuesStoreType;
   isArchived: boolean;
 
   // services
@@ -206,8 +222,12 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   constructor(
     _rootStore: IIssueRootStore,
     issueFilterStore: IBaseIssueFilterStore,
-    isArchived = false,
-    serviceType = EIssueServiceType.ISSUES
+    storeType: EIssuesStoreType,
+    options: TBaseIssueStoreOptions = {
+      isArchived: false,
+      serviceType: EIssueServiceType.ISSUES,
+      isUsingLocalDB: false,
+    }
   ) {
     makeObservable(this, {
       // observable
@@ -257,11 +277,12 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       removeIssuesFromModule: action.bound,
       changeModulesInIssue: action.bound,
     });
+    const { isArchived = false, serviceType = EIssueServiceType.ISSUES, isUsingLocalDB = false } = options;
     this.rootIssueStore = _rootStore;
     this.issueFilterStore = issueFilterStore;
-
+    this.storeType = storeType;
     this.isArchived = isArchived;
-
+    // services
     this.issueService = new IssueService(serviceType);
     this.issueArchiveService = new IssueArchiveService();
     this.issueDraftService = new IssueDraftService();
@@ -269,12 +290,86 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     this.cycleService = new CycleService();
 
     this.controller = new AbortController();
+
+    syncChannel.addEventListener("message", (event: TIssueBroadcastEvent) => {
+      const isStoreActive = isCurrentIssueStoreActive(this.storeType);
+      if (isUsingLocalDB && isStoreActive) {
+        // Get the current workspace and project details
+        const { workspaceSlug } = this.rootIssueStore.rootStore.router;
+        // Ignore the broadcast message if it's not from the current workspace
+        if (event.data.workspaceSlug !== workspaceSlug || event.data.projectId !== this.rootIssueStore.projectId) {
+          return;
+        }
+        this.syncIssueStore(event.data);
+      }
+    });
   }
 
   // Abstract class to be implemented to fetch parent stats such as project, module or cycle details
   abstract fetchParentStats: (workspaceSlug: string, projectId?: string, id?: string) => void;
 
   abstract updateParentStats: (prevIssueState?: TIssue, nextIssueState?: TIssue, id?: string) => void;
+
+  // ------------- Local DB Sync Start --------------
+
+  // Helper method to get current filters
+  getCurrentFilters = () => {
+    // Get the current instance filters
+    const filters = cloneDeep(this.issueFilterStore?.issueFilters?.filters);
+    // Add current module and cycle to filters if present
+    if (filters) {
+      if (this.moduleId) {
+        update(filters, "module", (value) => (value ? [...value, this.moduleId] : [this.moduleId]));
+      }
+      if (this.cycleId) {
+        update(filters, "cycle", (value) => (value ? [...value, this.cycleId] : [this.cycleId]));
+      }
+    }
+    return filters;
+  };
+
+  // Helper method to handle issue store sync
+  syncIssueStore = (event: TIssueSyncEvent | TIssueRemoveEvent) => {
+    const eventType = event.type;
+    switch (eventType) {
+      case "issues:sync": {
+        const issues: TIssue[] = event.data;
+        const issuesPreviousState = getPreviousIssuesState(issues);
+        // Get the current instance filters
+        const currentFilters = this.getCurrentFilters();
+        // Filter issues based on currently applied filters
+        const filteredIssues = getFilteredIssues(
+          issues,
+          currentFilters,
+          this.issueFilterStore?.issueFilters?.displayFilters
+        );
+        runInAction(() => {
+          // Add or update issues in issueMap
+          this.rootIssueStore.issues.addIssue(issues);
+          // Update issue list based on filtered issues
+          for (const issue of filteredIssues) {
+            const prevIssueState = issuesPreviousState[issue.id];
+            this.updateIssueList(issue, prevIssueState, !prevIssueState ? EIssueGroupedAction.ADD : undefined);
+          }
+        });
+        break;
+      }
+      case "issues:remove": {
+        const issueIds: string[] = event.data;
+        runInAction(() => {
+          issueIds.forEach((issueId) => {
+            // Remove issue from issue list
+            this.removeIssueFromList(issueId);
+            // Remove issue from issue map
+            this.rootIssueStore.issues.removeIssue(issueId);
+          });
+        });
+        break;
+      }
+    }
+  };
+
+  // ------------- Local DB Sync End --------------
 
   // current Module Id from url
   get moduleId() {

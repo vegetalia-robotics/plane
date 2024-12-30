@@ -1,4 +1,5 @@
 import { action, makeObservable, runInAction } from "mobx";
+import { EIssuesStoreType } from "@plane/constants";
 // base class
 import {
   TIssue,
@@ -64,7 +65,9 @@ export class ModuleIssues extends BaseIssuesStore implements IModuleIssues {
   issueFilterStore: IModuleIssuesFilter;
 
   constructor(_rootStore: IIssueRootStore, issueFilterStore: IModuleIssuesFilter) {
-    super(_rootStore, issueFilterStore);
+    super(_rootStore, issueFilterStore, EIssuesStoreType.MODULE, {
+      isUsingLocalDB: true,
+    });
 
     makeObservable(this, {
       // action

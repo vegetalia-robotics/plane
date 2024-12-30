@@ -1,5 +1,6 @@
 import { action, makeObservable, runInAction } from "mobx";
 // base class
+import { EIssuesStoreType } from "@plane/constants";
 import {
   IssuePaginationOptions,
   TBulkOperationsPayload,
@@ -60,7 +61,7 @@ export class WorkspaceIssues extends BaseIssuesStore implements IWorkspaceIssues
   issueFilterStore;
 
   constructor(_rootStore: IIssueRootStore, issueFilterStore: IWorkspaceIssuesFilter) {
-    super(_rootStore, issueFilterStore);
+    super(_rootStore, issueFilterStore, EIssuesStoreType.GLOBAL);
 
     makeObservable(this, {
       // action

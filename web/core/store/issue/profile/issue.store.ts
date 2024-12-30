@@ -1,6 +1,14 @@
 import { action, observable, makeObservable, computed, runInAction } from "mobx";
 // base class
-import { TIssue, TLoader, IssuePaginationOptions, TIssuesResponse, ViewFlags, TBulkOperationsPayload } from "@plane/types";
+import { EIssuesStoreType } from "@plane/constants";
+import {
+  TIssue,
+  TLoader,
+  IssuePaginationOptions,
+  TIssuesResponse,
+  ViewFlags,
+  TBulkOperationsPayload,
+} from "@plane/types";
 import { UserService } from "@/services/user.service";
 
 // services
@@ -53,7 +61,7 @@ export class ProfileIssues extends BaseIssuesStore implements IProfileIssues {
   userService;
 
   constructor(_rootStore: IIssueRootStore, issueFilterStore: IProfileIssuesFilter) {
-    super(_rootStore, issueFilterStore);
+    super(_rootStore, issueFilterStore, EIssuesStoreType.PROFILE);
     makeObservable(this, {
       // observable
       currentView: observable.ref,

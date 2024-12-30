@@ -9,7 +9,7 @@ import { action, observable, makeObservable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
 // types
 // plane constants
-import { ALL_ISSUES } from "@plane/constants";
+import { ALL_ISSUES, EIssuesStoreType } from "@plane/constants";
 import {
   TIssue,
   TLoader,
@@ -111,7 +111,9 @@ export class CycleIssues extends BaseIssuesStore implements ICycleIssues {
   issueFilterStore;
 
   constructor(_rootStore: IIssueRootStore, issueFilterStore: ICycleIssuesFilter) {
-    super(_rootStore, issueFilterStore);
+    super(_rootStore, issueFilterStore, EIssuesStoreType.CYCLE, {
+      isUsingLocalDB: true,
+    });
     makeObservable(this, {
       // observable
       activeCycleIds: observable,

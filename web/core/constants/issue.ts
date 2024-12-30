@@ -11,6 +11,8 @@ import {
   TIssuePriorities,
   TIssueGroupingFilters,
   ILayoutDisplayFiltersOptions,
+  IIssueFilterOptions,
+  TIssue,
 } from "@plane/types";
 import { ADDITIONAL_ISSUE_DISPLAY_FILTERS_BY_LAYOUT } from "@/plane-web/constants";
 
@@ -525,3 +527,16 @@ export const groupReactionEmojis = (reactions: any) => {
 
   return groupedEmojis;
 };
+
+// Map filter keys to their corresponding issue property keys
+export const FILTER_TO_ISSUE_MAP: Partial<Record<keyof IIssueFilterOptions, keyof TIssue>> = {
+  assignees: "assignee_ids",
+  created_by: "created_by",
+  labels: "label_ids",
+  priority: "priority",
+  cycle: "cycle_id",
+  module: "module_ids",
+  project: "project_id",
+  state: "state_id",
+  issue_type: "type_id",
+} as const;

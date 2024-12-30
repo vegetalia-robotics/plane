@@ -1,4 +1,5 @@
 import { action, makeObservable, runInAction } from "mobx";
+import { EIssuesStoreType } from "@plane/constants";
 // base class
 import {
   TIssue,
@@ -56,8 +57,16 @@ export class ProjectViewIssues extends BaseIssuesStore implements IProjectViewIs
   //filter store
   issueFilterStore: IProjectViewIssuesFilter;
 
-  constructor(_rootStore: IIssueRootStore, issueFilterStore: IProjectViewIssuesFilter) {
-    super(_rootStore, issueFilterStore);
+  constructor(
+    _rootStore: IIssueRootStore,
+    issueFilterStore: IProjectViewIssuesFilter,
+    storeType: EIssuesStoreType,
+    isUsingLocalDB = false
+  ) {
+    // Intentionally setting storeType and isUsingLocalDB using constructor props as this store is extended by other stores as well.
+    super(_rootStore, issueFilterStore, storeType, {
+      isUsingLocalDB,
+    });
     makeObservable(this, {
       // action
       fetchIssues: action,
