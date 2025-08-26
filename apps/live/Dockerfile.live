@@ -44,6 +44,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline -
 ENV TURBO_TELEMETRY_DISABLED=1
 
 RUN pnpm turbo run build --filter=live
+RUN pnpm prune --prod
 
 # *****************************************************************************
 # STAGE 3: Run the project
@@ -52,13 +53,21 @@ RUN pnpm turbo run build --filter=live
 FROM base AS runner
 WORKDIR /app
 
+# Don't run production as root
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 -G nodejs nextjs
+USER 1001:1001
+
 COPY --from=installer /app/packages ./packages
 COPY --from=installer /app/apps/live/dist ./apps/live/dist
 COPY --from=installer /app/apps/live/node_modules ./apps/live/node_modules
 COPY --from=installer /app/node_modules ./node_modules
 
 ENV TURBO_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=5 \
+  CMD wget -qO- http://localhost:3000/live/health > /dev/null || exit 1
 CMD ["node", "apps/live/dist/server.js"]

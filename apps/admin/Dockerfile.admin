@@ -68,8 +68,8 @@ WORKDIR /app
 
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-USER nextjs
+RUN adduser --system --uid 1001 -G nodejs nextjs
+USER 1001:1001
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
@@ -97,7 +97,10 @@ ENV NEXT_PUBLIC_WEB_BASE_URL=$NEXT_PUBLIC_WEB_BASE_URL
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBO_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=5 \
+  CMD wget -qO- http://localhost:3000/god-mode > /dev/null || exit 1
 CMD ["node", "apps/admin/server.js"]
