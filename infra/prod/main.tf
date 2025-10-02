@@ -140,6 +140,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   rule {
     id     = "transition"
     status = "Enabled"
+    filter {
+      prefix = ""
+    }
     transition {
       days          = var.s3_lifecycle_ia_days
       storage_class = "STANDARD_IA"
