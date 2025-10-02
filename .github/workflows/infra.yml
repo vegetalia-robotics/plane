@@ -1,0 +1,48 @@
+name: infra (Terraform)
+
+on:
+  push:
+    paths:
+      - 'infra/prod/**'
+      - '.github/workflows/infra.yml'
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  plan-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: infra/prod
+        run: |
+          if [ ! -f backend.hcl ]; then cp backend.hcl.sample backend.hcl; fi
+          terraform init -backend-config=backend.hcl
+
+      - name: Terraform Plan
+        working-directory: infra/prod
+        run: terraform plan -out tf.plan
+
+      - name: Terraform Apply (auto-approve)
+        if: github.ref == 'refs/heads/main'
+        working-directory: infra/prod
+        run: terraform apply -auto-approve tf.plan

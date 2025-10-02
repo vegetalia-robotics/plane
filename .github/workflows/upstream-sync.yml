@@ -1,0 +1,31 @@
+name: upstream sync (optional)
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 毎日03:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Add upstream & merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git remote add upstream https://github.com/makeplane/plane.git || true
+          git fetch upstream
+          # preview を同期（存在するブランチのみ）
+          for BR in preview; do
+            if git ls-remote --exit-code --heads upstream $BR >/dev/null 2>&1; then
+              git checkout $BR || git checkout -b $BR
+              git merge --ff-only upstream/$BR || git rebase upstream/$BR
+              git push origin $BR
+            fi
+          done

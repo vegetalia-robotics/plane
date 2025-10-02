@@ -1,0 +1,9 @@
+project_name              = "plane"
+key_name                  = "breakglass"
+allowed_ssh_cidr          = "0.0.0.0/0"
+instance_type             = "t4g.medium"
+data_volume_size_gb       = 100
+domain_name               = ""
+hosted_zone_name          = ""
+s3_lifecycle_ia_days      = 90
+s3_lifecycle_glacier_days = 365

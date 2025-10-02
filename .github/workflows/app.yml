@@ -1,0 +1,82 @@
+name: app (ECR build & EC2 deploy)
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'infra/**'
+      - '.github/workflows/infra.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE_TAG: latest
+  PROJECT: Plane
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set ECR repo URIs
+        id: ecr
+        run: |
+          ACC=$(aws sts get-caller-identity --query Account --output text)
+          PROJECT_SLUG=${PROJECT,,}
+          echo "BACKEND=${ACC}.dkr.ecr.${AWS_REGION}.amazonaws.com/${PROJECT_SLUG}-backend" >> $GITHUB_OUTPUT
+          echo "FRONTEND=${ACC}.dkr.ecr.${AWS_REGION}.amazonaws.com/${PROJECT_SLUG}-frontend" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push backend (linux/arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/api
+          file: ./apps/api/Dockerfile.api
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.BACKEND }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr.outputs.BACKEND }}:${{ github.sha }}
+
+      - name: Build & Push frontend (linux/arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/web
+          file: ./apps/web/Dockerfile.web
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.FRONTEND }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr.outputs.FRONTEND }}:${{ github.sha }}
+
+      - name: Kick remote deploy via SSM
+        run: |
+          # EC2 に Project=${PROJECT} がタグ付けされていること（Terraformが付与）
+          cat > /tmp/cmd.sh <<'EOS'
+          set -euo pipefail
+          cd /opt/plane
+          # ECR レジストリを compose へ注入
+          export ECR_BACKEND=${{ steps.ecr.outputs.BACKEND }}
+          export ECR_FRONTEND=${{ steps.ecr.outputs.FRONTEND }}
+          sed -i "s|<replace>|${ECR_BACKEND}|g" /opt/plane/docker-compose.prod.yml || true
+          # 更新
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+          docker image prune -f || true
+          EOS
+          aws ssm send-command --document-name "AWS-RunShellScript" --parameters commands="`cat /tmp/cmd.sh`" --targets "Key=tag:Project,Values=${PROJECT}"             --comment "Plane deploy from GitHub Actions"

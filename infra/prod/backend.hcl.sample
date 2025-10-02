@@ -1,0 +1,4 @@
+bucket = "plane-tfstate"   # bootstrap の output 参照
+key    = "prod/terraform.tfstate"
+region = "ap-northeast-1"
+use_lockfile = true
