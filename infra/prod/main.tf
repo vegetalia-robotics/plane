@@ -4,6 +4,7 @@ locals {
 }
 
 data "aws_availability_zones" "available" {}
+data "aws_caller_identity" "current" {}
 
 # VPC
 resource "aws_vpc" "this" {
@@ -118,7 +119,7 @@ resource "aws_iam_instance_profile" "ec2" {
 
 # S3 uploads
 resource "aws_s3_bucket" "uploads" {
-  bucket = "${local.name}-uploads"
+  bucket = "${local.name}-${data.aws_caller_identity.current.account_id}-uploads"
   tags   = local.tags
 }
 resource "aws_s3_bucket_versioning" "uploads" {
