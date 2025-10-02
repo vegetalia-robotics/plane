@@ -45,12 +45,47 @@ resource "aws_security_group" "app" {
   name   = "${local.name}-sg"
   vpc_id = aws_vpc.this.id
 
-  ingress { description="SSH"; from_port=22; to_port=22; protocol="tcp"; cidr_blocks=[var.allowed_ssh_cidr] }
-  ingress { description="HTTP"; from_port=80; to_port=80; protocol="tcp"; cidr_blocks=["0.0.0.0/0"] }
-  ingress { description="HTTPS"; from_port=443; to_port=443; protocol="tcp"; cidr_blocks=["0.0.0.0/0"] }
-  ingress { description="Postgres"; from_port=5432; to_port=5432; protocol="tcp"; self=true }
-  ingress { description="Redis"; from_port=6379; to_port=6379; protocol="tcp"; self=true }
-  egress  { from_port=0; to_port=0; protocol="-1"; cidr_blocks=["0.0.0.0/0"] }
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.allowed_ssh_cidr]
+  }
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "Postgres"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    self        = true
+  }
+  ingress {
+    description = "Redis"
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    self        = true
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
   tags = merge(local.tags, { Name = "${local.name}-sg" })
 }
 
@@ -58,7 +93,10 @@ resource "aws_security_group" "app" {
 data "aws_iam_policy_document" "ec2_trust" {
   statement {
     actions = ["sts:AssumeRole"]
-    principals { type = "Service", identifiers = ["ec2.amazonaws.com"] }
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
   }
 }
 
@@ -85,32 +123,56 @@ resource "aws_s3_bucket" "uploads" {
 }
 resource "aws_s3_bucket_versioning" "uploads" {
   bucket = aws_s3_bucket.uploads.id
-  versioning_configuration { status = "Enabled" }
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
   bucket = aws_s3_bucket.uploads.id
-  rule { apply_server_side_encryption_by_default { sse_algorithm = "AES256" } }
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
 }
 resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   bucket = aws_s3_bucket.uploads.id
   rule {
     id     = "transition"
     status = "Enabled"
-    transition { days = var.s3_lifecycle_ia_days,      storage_class = "STANDARD_IA" }
-    transition { days = var.s3_lifecycle_glacier_days, storage_class = "GLACIER" }
+    transition {
+      days          = var.s3_lifecycle_ia_days
+      storage_class = "STANDARD_IA"
+    }
+    transition {
+      days          = var.s3_lifecycle_glacier_days
+      storage_class = "GLACIER"
+    }
   }
 }
 
 # Random secrets
-resource "random_password" "postgres" { length = 24, special = false }
-resource "random_password" "redis"    { length = 24, special = false }
-resource "random_password" "secret"   { length = 48, special = false }
+resource "random_password" "postgres" {
+  length  = 24
+  special = false
+}
+resource "random_password" "redis" {
+  length  = 24
+  special = false
+}
+resource "random_password" "secret" {
+  length  = 48
+  special = false
+}
 
 # AMI (Ubuntu ARM64)
 data "aws_ami" "ubuntu_arm64" {
   most_recent = true
   owners      = ["099720109477"]
-  filter { name="name"; values=["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"] }
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"]
+  }
 }
 
 # EC2
@@ -173,13 +235,17 @@ resource "aws_route53_record" "a" {
 resource "aws_ecr_repository" "backend" {
   name                 = "${local.name}-backend"
   image_tag_mutability = "MUTABLE"
-  image_scanning_configuration { scan_on_push = true }
+  image_scanning_configuration {
+    scan_on_push = true
+  }
   tags = local.tags
 }
 resource "aws_ecr_repository" "frontend" {
   name                 = "${local.name}-frontend"
   image_tag_mutability = "MUTABLE"
-  image_scanning_configuration { scan_on_push = true }
+  image_scanning_configuration {
+    scan_on_push = true
+  }
   tags = local.tags
 }
 
