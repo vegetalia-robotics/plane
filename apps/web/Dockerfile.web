@@ -38,7 +38,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch --store-dir=/
 
 # Build the project
 COPY --from=builder /app/out/full/ .
-COPY turbo.json turbo.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline --frozen-lockfile --store-dir=/pnpm/store
 
 ARG NEXT_PUBLIC_API_BASE_URL=""
