@@ -79,4 +79,10 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
           docker image prune -f || true
           EOS
-          aws ssm send-command --document-name "AWS-RunShellScript" --parameters commands="`cat /tmp/cmd.sh`" --targets "Key=tag:Project,Values=${PROJECT}"             --comment "Plane deploy from GitHub Actions"
+          jq -Rn --slurp --rawfile c /tmp/cmd.sh '{ commands: [$c] }' > /tmp/params.json
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --cli-binary-format raw-in-base64-out \
+            --parameters file:///tmp/params.json \
+            --targets "Key=tag:Project,Values=${PROJECT}" \
+            --comment "Plane deploy from GitHub Actions"
