@@ -68,6 +68,13 @@ jobs:
             ${{ steps.ecr.outputs.FRONTEND }}:${{ env.IMAGE_TAG }}
             ${{ steps.ecr.outputs.FRONTEND }}:${{ github.sha }}
 
+      - name: Configure AWS credentials (OIDC) for deploy (refresh)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-duration-seconds: 3600
+
       - name: Kick remote deploy via SSM
         run: |
           # EC2 に Project=${PROJECT} がタグ付けされていること（Terraformが付与）
