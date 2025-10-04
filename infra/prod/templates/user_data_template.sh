@@ -30,7 +30,8 @@ PLANE_SECRET_KEY=${plane_secret_key}
 # Database
 POSTGRES_PASSWORD=${database_password}
 DATABASE_URL=postgresql://plane:${database_password}@postgres:5432/plane
-REDIS_URL=${redis_url}
+REDIS_PASSWORD=${redis_password}
+REDIS_URL=redis://:${redis_password}@redis:6379/0
 
 # Celery (RabbitMQ broker)
 CELERY_BROKER_URL=amqp://guest:guest@plane-mq:5672//
@@ -47,6 +48,9 @@ AWS_ACCESS_KEY_ID=${s3_access_key}
 AWS_SECRET_ACCESS_KEY=${s3_secret_key}
 AWS_DEFAULT_REGION=${aws_region}
 ENVEOF
+
+# Remove empty S3 endpoint line to avoid invalid endpoint errors
+sed -i '/^AWS_S3_ENDPOINT_URL=$/d' .env
 
 # -----------------------------------------------------------------------------
 # Write ECR image configuration (.env.ecr)
@@ -90,10 +94,11 @@ services:
   redis:
     image: redis:7
     restart: always
-    volumes:
-      - redis_data:/data
+    command: ["redis-server","--requirepass","${REDIS_PASSWORD}"]
+    env_file: [".env"]
+    volumes: ["redis_data:/data"]
     healthcheck:
-      test: ["CMD", "redis-cli", "PING"]
+      test: ["CMD","redis-cli","-a","${REDIS_PASSWORD}","PING"]
       interval: 5s
       timeout: 3s
       retries: 20

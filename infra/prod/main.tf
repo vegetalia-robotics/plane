@@ -198,6 +198,7 @@ resource "aws_instance" "app" {
   user_data = templatefile("${path.module}/templates/user_data_template.sh", {
     plane_secret_key = random_password.secret.result
     database_password= random_password.postgres.result
+    redis_password   = random_password.redis.result
     redis_url        = format("redis://:%s@redis:6379/0", random_password.redis.result)
     s3_endpoint      = ""
     s3_bucket        = aws_s3_bucket.uploads.bucket
