@@ -112,6 +112,12 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Allow instance to pull images from ECR
+resource "aws_iam_role_policy_attachment" "ecr_readonly" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "${local.name}-ec2"
   role = aws_iam_role.ec2.name
@@ -189,12 +195,17 @@ resource "aws_instance" "app" {
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
   associate_public_ip_address = true
 
-  user_data = templatefile("${path.module}/templates/user-data.sh.tmpl", {
-    region        = var.region
-    uploads_bucket= aws_s3_bucket.uploads.bucket
-    postgres_pass = random_password.postgres.result
-    redis_pass    = random_password.redis.result
-    plane_secret  = random_password.secret.result
+  user_data = templatefile("${path.module}/templates/user_data_template.sh", {
+    plane_secret_key = random_password.secret.result
+    database_url     = format("postgresql://plane:%s@postgres:5432/plane", random_password.postgres.result)
+    redis_url        = format("redis://:%s@redis:6379/0", random_password.redis.result)
+    s3_endpoint      = ""
+    s3_bucket        = aws_s3_bucket.uploads.bucket
+    s3_access_key    = ""
+    s3_secret_key    = ""
+    aws_region       = var.region
+    ecr_backend_uri  = aws_ecr_repository.backend.repository_url
+    ecr_frontend_uri = aws_ecr_repository.frontend.repository_url
   })
 
   tags = merge(local.tags, { Name = "${local.name}-ec2" })
