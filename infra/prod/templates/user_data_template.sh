@@ -39,6 +39,8 @@ S3_BUCKET=${s3_bucket}
 S3_ACCESS_KEY=${s3_access_key}
 S3_SECRET_KEY=${s3_secret_key}
 AWS_REGION=${aws_region}
+CELERY_BROKER_URL=amqp://guest:guest@plane-mq:5672//
+CELERY_RESULT_BACKEND=rpc://
 ENVEOF
 
 # -----------------------------------------------------------------------------
@@ -81,6 +83,13 @@ services:
     volumes:
       - redis_data:/data
 
+  plane-mq:
+    image: rabbitmq:3.13.6-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
 volumes:
   postgres_data:
   redis_data:
@@ -98,6 +107,7 @@ services:
     depends_on:
       - postgres
       - redis
+      - plane-mq
 
   frontend:
     # This image URI is substituted by Terraform via the ecr_frontend_uri variable
@@ -113,6 +123,28 @@ services:
       # compose network. Do not set this to localhost, as the frontend
       # container does not run the API itself.
       NEXT_PUBLIC_API_URL: http://backend:8000
+
+  worker:
+    image: ${ecr_backend_uri}
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - plane-mq
+    command: ./bin/docker-entrypoint-worker.sh
+
+  beat-worker:
+    image: ${ecr_backend_uri}
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - plane-mq
+    command: ./bin/docker-entrypoint-beat.sh
 COMPOSEPROD
 
 # -----------------------------------------------------------------------------
