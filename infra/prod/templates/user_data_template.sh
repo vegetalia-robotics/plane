@@ -46,6 +46,64 @@ ECR_FRONTEND=${ecr_frontend_uri}
 ECREOF
 
 # -----------------------------------------------------------------------------
+# Write default Docker Compose files
+#
+# If your repository does not provide docker-compose.yml and
+# docker-compose.prod.yml, the lines below will create minimal versions so
+# Plane can start.  You can replace these definitions with your own custom
+# Compose files via Terraform or manual provisioning.  The first file
+# defines infrastructure services (PostgreSQL and Redis); the second
+# defines the Plane backend and frontend, using the ECR image URIs from
+# .env.ecr.
+cat > docker-compose.yml <<'COMPOSEEOF'
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: plane
+      POSTGRES_PASSWORD: plane
+      POSTGRES_DB: plane
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    restart: always
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+COMPOSEEOF
+
+cat > docker-compose.prod.yml <<'COMPOSEPROD'
+version: '3.8'
+services:
+  backend:
+    image: ${ECR_BACKEND}
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    image: ${ECR_FRONTEND}
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:3000"
+    environment:
+      # Expose the API URL for the frontend to talk to the backend.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+COMPOSEPROD
+
+# -----------------------------------------------------------------------------
 # Install system dependencies
 #
 # Update package metadata and install Docker, unzip, and curl.  We also
