@@ -83,7 +83,8 @@ cat > docker-compose.prod.yml <<'COMPOSEPROD'
 version: '3.8'
 services:
   backend:
-    image: ${ECR_BACKEND}
+    # This image URI is substituted by Terraform via the ecr_backend_uri variable
+    image: ${ecr_backend_uri}
     restart: always
     env_file:
       - .env
@@ -92,7 +93,8 @@ services:
       - redis
 
   frontend:
-    image: ${ECR_FRONTEND}
+    # This image URI is substituted by Terraform via the ecr_frontend_uri variable
+    image: ${ecr_frontend_uri}
     restart: always
     depends_on:
       - backend
