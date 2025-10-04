@@ -139,14 +139,12 @@ services:
     depends_on:
       backend:
         condition: service_started
-    ports:
-      - "80:3000"
     environment:
       # Expose the API URL for the frontend to talk to the backend. The
       # hostname "backend" resolves to the backend service within the
       # compose network. Do not set this to localhost, as the frontend
       # container does not run the API itself.
-      NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: /api
 
   worker:
     image: ${ecr_backend_uri}
@@ -175,7 +173,28 @@ services:
       plane-mq:
         condition: service_healthy
     command: ./bin/docker-entrypoint-beat.sh
+  proxy:
+    image: caddy:2
+    restart: always
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
 COMPOSEPROD
+
+# -----------------------------------------------------------------------------
+# Write reverse proxy configuration (Caddyfile)
+#
+cat > Caddyfile <<'CADDYEOF'
+:80 {
+  @api path /api* /admin* /graphql* /media* /static*
+  handle @api { reverse_proxy backend:8000 }
+  handle      { reverse_proxy frontend:3000 }
+}
+CADDYEOF
 
 # -----------------------------------------------------------------------------
 # Install system dependencies
