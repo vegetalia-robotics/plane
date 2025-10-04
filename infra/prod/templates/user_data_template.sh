@@ -81,7 +81,7 @@ grep -q '^USE_MINIO=' .env || echo 'USE_MINIO=0' >> .env
 # Onboarding toggles
 # - Allow signup
 sed -i '/^ENABLE_SIGNUP=/d' .env
-echo 'ENABLE_SIGNUP=true' >> .env
+echo 'ENABLE_SIGNUP=1' >> .env
 # - Remove workspace creation block flag entirely
 sed -i '/^DISABLE_WORKSPACE_CREATION=/d' .env
 
