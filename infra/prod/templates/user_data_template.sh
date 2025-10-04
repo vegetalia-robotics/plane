@@ -70,7 +70,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: plane
-      POSTGRES_PASSWORD: $${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: $${database_password}
       POSTGRES_DB: plane
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -184,6 +184,9 @@ aws ecr get-login-password --region "$REGION" \
 # pull fails (e.g. because the image hasn't been pushed yet).
 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull || true
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans || true
+# Run database migrations
+# After services are up, apply pending Django migrations.
+docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm backend python manage.py migrate --noinput || true
 
 # -----------------------------------------------------------------------------
 # Register a systemd unit so Plane starts on boot
