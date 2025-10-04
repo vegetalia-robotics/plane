@@ -25,7 +25,13 @@ cd /opt/plane
 # literally wrapped in braces when running in production.
 cat > .env <<'ENVEOF'
 PLANE_SECRET_KEY=${plane_secret_key}
+# Password for the Postgres user.  Ensure this matches the value used
+# in the postgres service definition below.  It is provided by
+# Terraform as `database_password`.
 POSTGRES_PASSWORD=${database_password}
+# Construct the full connection URL with the same password.  Compose
+# does not perform nested variable interpolation inside .env files, so
+# we embed the password directly.
 DATABASE_URL=postgresql://plane:${database_password}@postgres:5432/plane
 REDIS_URL=${redis_url}
 S3_ENDPOINT=${s3_endpoint}
@@ -64,7 +70,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: plane
-      POSTGRES_PASSWORD: plane
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: plane
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -102,8 +108,11 @@ services:
     ports:
       - "80:3000"
     environment:
-      # Expose the API URL for the frontend to talk to the backend.
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Expose the API URL for the frontend to talk to the backend. The
+      # hostname "backend" resolves to the backend service within the
+      # compose network. Do not set this to localhost, as the frontend
+      # container does not run the API itself.
+      NEXT_PUBLIC_API_URL: http://backend:8000
 COMPOSEPROD
 
 # -----------------------------------------------------------------------------
