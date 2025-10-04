@@ -70,7 +70,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: plane
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: $${POSTGRES_PASSWORD}
       POSTGRES_DB: plane
     volumes:
       - postgres_data:/var/lib/postgresql/data
