@@ -24,7 +24,7 @@ cd /opt/plane
 # Terraform variables via template interpolation.  Do not leave the values
 # literally wrapped in braces when running in production.
 cat > .env <<'ENVEOF'
-PLANE_SECRET_KEY=${plane_secret_key}
+SECRET_KEY=${plane_secret_key}
 # Password for the Postgres user.  Ensure this matches the value used
 # in the postgres service definition below.  It is provided by
 # Terraform as `database_password`.
