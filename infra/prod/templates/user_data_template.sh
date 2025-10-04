@@ -191,8 +191,12 @@ COMPOSEPROD
 cat > Caddyfile <<'CADDYEOF'
 :80 {
   @api path /api* /admin* /graphql* /media* /static*
-  handle @api { reverse_proxy backend:8000 }
-  handle      { reverse_proxy frontend:3000 }
+  handle @api {
+    reverse_proxy backend:8000
+  }
+  handle {
+    reverse_proxy frontend:3000
+  }
 }
 CADDYEOF
 
