@@ -25,22 +25,27 @@ cd /opt/plane
 # literally wrapped in braces when running in production.
 cat > .env <<'ENVEOF'
 SECRET_KEY=${plane_secret_key}
-# Password for the Postgres user.  Ensure this matches the value used
-# in the postgres service definition below.  It is provided by
-# Terraform as `database_password`.
+PLANE_SECRET_KEY=${plane_secret_key}
+
+# Database
 POSTGRES_PASSWORD=${database_password}
-# Construct the full connection URL with the same password.  Compose
-# does not perform nested variable interpolation inside .env files, so
-# we embed the password directly.
 DATABASE_URL=postgresql://plane:${database_password}@postgres:5432/plane
 REDIS_URL=${redis_url}
-S3_ENDPOINT=${s3_endpoint}
-S3_BUCKET=${s3_bucket}
-S3_ACCESS_KEY=${s3_access_key}
-S3_SECRET_KEY=${s3_secret_key}
-AWS_REGION=${aws_region}
+
+# Celery (RabbitMQ broker)
 CELERY_BROKER_URL=amqp://guest:guest@plane-mq:5672//
 CELERY_RESULT_BACKEND=rpc://
+
+# Gunicorn
+GUNICORN_WORKERS=2
+PORT=8000
+
+# Object storage (S3/MinIO)
+AWS_S3_BUCKET_NAME=${s3_bucket}
+AWS_S3_ENDPOINT_URL=${s3_endpoint}
+AWS_ACCESS_KEY_ID=${s3_access_key}
+AWS_SECRET_ACCESS_KEY=${s3_secret_key}
+AWS_DEFAULT_REGION=${aws_region}
 ENVEOF
 
 # -----------------------------------------------------------------------------
@@ -76,12 +81,22 @@ services:
       POSTGRES_DB: plane
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plane -d plane || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:7
     restart: always
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   plane-mq:
     image: rabbitmq:3.13.6-management-alpine
@@ -89,6 +104,11 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   postgres_data:
@@ -105,16 +125,20 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
-      - redis
-      - plane-mq
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      plane-mq:
+        condition: service_healthy
 
   frontend:
     # This image URI is substituted by Terraform via the ecr_frontend_uri variable
     image: ${ecr_frontend_uri}
     restart: always
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     ports:
       - "80:3000"
     environment:
@@ -130,9 +154,12 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
-      - redis
-      - plane-mq
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      plane-mq:
+        condition: service_healthy
     command: ./bin/docker-entrypoint-worker.sh
 
   beat-worker:
@@ -141,9 +168,12 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
-      - redis
-      - plane-mq
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      plane-mq:
+        condition: service_healthy
     command: ./bin/docker-entrypoint-beat.sh
 COMPOSEPROD
 
