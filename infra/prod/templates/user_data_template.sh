@@ -1,12 +1,28 @@
 #!/bin/bash
+#
+# user_data_plane.sh - Setup script for Plane on an EC2 instance
+#
+# This script is intended to be used as EC2 user‑data.  It installs Docker
+# and the docker‑compose CLI plugin, installs the AWS CLI, writes out
+# environment configuration files, pulls your Plane images from Amazon ECR,
+# starts the containers, and registers a systemd unit so that Plane
+# automatically starts on boot.  Variable placeholders (e.g. ${plane_secret_key})
+# should be substituted by Terraform or your templating engine before use.
+
 set -euo pipefail
 
-# Create working directory
+# Create working directory for Plane.  Use sudo to ensure we can write to
+# /opt; cloud‑init runs as root so this will succeed.
 mkdir -p /opt/plane
 cd /opt/plane
 
-# Write .env file with application configuration
-# Replace the placeholders via Terraform variables or hard-coded values as needed
+# -----------------------------------------------------------------------------
+# Write application configuration (.env)
+#
+# Populate this file with your actual secrets and connection strings.  The
+# placeholders here (e.g. ${plane_secret_key}) are meant to be replaced by
+# Terraform variables via template interpolation.  Do not leave the values
+# literally wrapped in braces when running in production.
 cat > .env <<'ENVEOF'
 PLANE_SECRET_KEY=${plane_secret_key}
 DATABASE_URL=${database_url}
@@ -18,46 +34,95 @@ S3_SECRET_KEY=${s3_secret_key}
 AWS_REGION=${aws_region}
 ENVEOF
 
-# Write environment file for ECR image URIs
+# -----------------------------------------------------------------------------
+# Write ECR image configuration (.env.ecr)
+#
+# These URIs should point at the private ECR repositories containing your
+# Plane backend and frontend images.  Substitute these placeholders with
+# Terraform variables.
 cat > .env.ecr <<'ECREOF'
 ECR_BACKEND=${ecr_backend_uri}
 ECR_FRONTEND=${ecr_frontend_uri}
 ECREOF
 
-# Install dependencies: curl, unzip, docker, docker-compose, awscli
-apt-get update
+# -----------------------------------------------------------------------------
+# Install system dependencies
+#
+# Update package metadata and install Docker, unzip, and curl.  We also
+# install awscli v2 later if it is not already present.  apt-get update can
+# occasionally fail on first boot due to network not being ready; retry up to
+# five times before giving up.
+for attempt in {1..5}; do
+    if apt-get update; then
+        break
+    fi
+    sleep 15
+done
 apt-get install -y docker.io unzip curl
 
-# Enable and start Docker service
+# Enable and start Docker
 systemctl enable --now docker
 
-# Install AWS CLI v2 if not already installed
+# -----------------------------------------------------------------------------
+# Install AWS CLI v2
+#
+# The AWS CLI is required for logging in to ECR.  If the `aws` command is not
+# available, download and install the CLI.  Cleanup temporary files
+# afterwards.
 if ! command -v aws >/dev/null 2>&1; then
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "/tmp/awscliv2.zip"
-    unzip -q /tmp/awscliv2.zip -d /tmp
-    /tmp/aws/install
-    rm -rf /tmp/aws /tmp/awscliv2.zip
+    tmpdir=$(mktemp -d)
+    curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "$tmpdir/awscliv2.zip"
+    unzip -q "$tmpdir/awscliv2.zip" -d "$tmpdir"
+    "$tmpdir/aws/install"
+    rm -rf "$tmpdir"
 fi
 
-# Install docker-compose v2 if not installed
+# -----------------------------------------------------------------------------
+# Install docker compose (v2) CLI plugin
+#
+# The docker.io package on Ubuntu 22.04 does not include the compose v2
+# plugin by default.  If `docker compose version` fails, download the
+# appropriate binary and place it in the CLI plugin directory.  This makes
+# `docker compose` available as a subcommand of `docker`.
 if ! docker compose version >/dev/null 2>&1; then
-    # Compose v2 plugin might already come with newer docker.io packages; fallback to manual install
-    curl -SL "https://github.com/docker/compose/releases/download/v2.24.2/docker-compose-linux-aarch64" -o /usr/local/bin/docker-compose
-    chmod +x /usr/local/bin/docker-compose
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    curl -sSL "https://github.com/docker/compose/releases/download/v2.24.2/docker-compose-linux-aarch64" \
+        -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 fi
 
-# Login to Amazon ECR using AWS CLI
+# -----------------------------------------------------------------------------
+# Authenticate to Amazon ECR
+#
+# Retrieve the AWS account ID using the AWS CLI and then perform an ECR
+# login.  The instance must have an IAM role attached that allows
+# "ecr:GetAuthorizationToken" and that permits reading from your ECR
+# repositories.  Without these permissions the login will fail.  The region
+# variable is read from AWS_REGION (written into .env above).
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION="${aws_region}"
-aws ecr get-login-password --region "$REGION" | \
-    docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+aws ecr get-login-password --region "$REGION" \
+    | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
 
-# Pull and start Docker Compose services
-# Ensure docker-compose.yml and docker-compose.prod.yml exist in /opt/plane
-/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml pull || true
-/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans || true
+# -----------------------------------------------------------------------------
+# Pull and start Plane services using Docker Compose
+#
+# Compose files `docker-compose.yml` and `docker-compose.prod.yml` should be
+# present in /opt/plane (for example via Terraform write_files).  Pull the
+# images first (ignore errors if not present yet), then bring up the stack in
+# the background.  `|| true` ensures that the script continues even if the
+# pull fails (e.g. because the image hasn't been pushed yet).
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull || true
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans || true
 
-# Register systemd unit for automatic restart on boot
+# -----------------------------------------------------------------------------
+# Register a systemd unit so Plane starts on boot
+#
+# The unit invokes `docker compose up` when started and `docker compose down`
+# when stopped.  We load environment variables from .env.ecr to supply the
+# image URIs.  The service is marked as Type=oneshot because the compose
+# command stays in the foreground only briefly (then spawns containers and
+# exits).
 cat > /etc/systemd/system/plane-compose.service <<'SERVICEEOF'
 [Unit]
 Description=Plane Compose Service
@@ -76,7 +141,7 @@ ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.ym
 WantedBy=multi-user.target
 SERVICEEOF
 
+# Reload systemd to pick up the new unit and enable it
 systemctl daemon-reload
 systemctl enable plane-compose.service
 systemctl restart plane-compose.service
-
