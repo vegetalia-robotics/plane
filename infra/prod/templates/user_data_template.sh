@@ -94,11 +94,11 @@ services:
   redis:
     image: redis:7
     restart: always
-    command: ["redis-server","--requirepass","${REDIS_PASSWORD}"]
+    command: ["redis-server","--requirepass","$${REDIS_PASSWORD}"]
     env_file: [".env"]
     volumes: ["redis_data:/data"]
     healthcheck:
-      test: ["CMD","redis-cli","-a","${REDIS_PASSWORD}","PING"]
+      test: ["CMD","redis-cli","-a","$${REDIS_PASSWORD}","PING"]
       interval: 5s
       timeout: 3s
       retries: 20
