@@ -25,7 +25,8 @@ cd /opt/plane
 # literally wrapped in braces when running in production.
 cat > .env <<'ENVEOF'
 PLANE_SECRET_KEY=${plane_secret_key}
-DATABASE_URL=${database_url}
+POSTGRES_PASSWORD=${database_password}
+DATABASE_URL=postgresql://plane:${database_password}@postgres:5432/plane
 REDIS_URL=${redis_url}
 S3_ENDPOINT=${s3_endpoint}
 S3_BUCKET=${s3_bucket}
