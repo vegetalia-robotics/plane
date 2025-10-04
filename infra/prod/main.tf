@@ -118,6 +118,30 @@ resource "aws_iam_role_policy_attachment" "ecr_readonly" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+# EC2 role S3 access (scoped to uploads bucket)
+resource "aws_iam_role_policy" "ec2_s3_uploads_rw" {
+  name = "${var.project_name}-ec2-s3-uploads-rw"
+  role = aws_iam_role.ec2.name
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid      = "ListHeadBucket",
+        Effect   = "Allow",
+        Action   = ["s3:HeadBucket", "s3:ListBucket"],
+        Resource = "arn:aws:s3:::${aws_s3_bucket.uploads.bucket}"
+      },
+      {
+        Sid      = "RWObjects",
+        Effect   = "Allow",
+        Action   = ["s3:GetObject","s3:PutObject","s3:DeleteObject"],
+        Resource = "arn:aws:s3:::${aws_s3_bucket.uploads.bucket}/*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "${local.name}-ec2"
   role = aws_iam_role.ec2.name
